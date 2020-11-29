@@ -1,0 +1,26 @@
+{
+  "name": "nym-near",
+  "version": "1.0.0",
+  "description": "An auction for NEAR account names",
+  "scripts": {
+    "build": "cargo build --target wasm32-unknown-unknown --release",
+    "postbuild": "cp target/wasm32-unknown-unknown/release/nym_near.wasm ./res/"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TrevorJTClarke/nym-near.git"
+  },
+  "keywords": [
+    "near-protocol",
+    "blockchain",
+    "rust",
+    "smart-contract"
+  ],
+  "author": "TrevorJTClarke",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/TrevorJTClarke/nym-near/issues"
+  },
+  "homepage": "https://github.com/TrevorJTClarke/nym-near#readme",
+  "devDependencies": {}
+}
