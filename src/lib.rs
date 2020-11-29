@@ -24,7 +24,11 @@ pub struct Auction<T> {
 
 impl ToString for Auction<String> {
     fn to_string(&self) -> String {
-        let fields = vec![self.owner_id.to_string(), self.asset.to_string(), self.close_block.to_string()];
+        let fields = vec![
+            self.owner_id.to_string(), 
+            self.asset.to_string(), 
+            self.close_block.to_string()
+        ];
         fields.join("")
     }
 }
@@ -38,8 +42,11 @@ pub struct AuctionHouse {
 impl Default for AuctionHouse {
     fn default() -> Self {
         AuctionHouse {
-            auctions: UnorderedMap::new(env::keccak256(env::block_timestamp().to_string().as_bytes())),
-            ..Default::default()
+            auctions: UnorderedMap::new(
+                env::keccak256(
+                    env::block_index().to_string().as_bytes()
+                )
+            )
         }
     }
 }
@@ -57,9 +64,25 @@ impl AuctionHouse {
             owner_id: env::signer_account_id(),
             close_block: env::block_index() + 100,
             winner_account_id: None,
-            bids: UnorderedMap::new(env::keccak256(env::block_index().to_string().as_bytes()))
+            bids: UnorderedMap::new(
+                env::keccak256(
+                    env::block_index().to_string().as_bytes()
+                )
+            )
         };
-        self.auctions.insert(env::keccak256(auction.to_string()).to_string(), auction)
+        
+        // Convert our auction to a string & compute the keccak256 hash
+        let key = String::from_utf8(env::keccak256(
+            auction.to_string().as_bytes()
+        )).expect("Failed to create auction hash");
+
+        // Error check for failed insertion
+        if let None = self.auctions.insert(
+            &key, 
+            &auction
+        ) {
+            panic!("Failed to create new auction")
+        }
     }
 }
 
