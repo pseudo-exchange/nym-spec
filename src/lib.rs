@@ -71,7 +71,7 @@ impl AuctionHouse {
         let hash = env::keccak256(
             auction.to_string().as_bytes()
         );
-        let key = String::from_utf8(hash).unwrap().to_string(); //.expect("Failed to create auction hash");
+        let key = String::from_utf8(hash).unwrap(); //.expect("Failed to create auction hash");
 
         // Error check for failed insertion
         if let None = self.auctions.insert(
@@ -87,8 +87,8 @@ impl AuctionHouse {
         key
     }
 
-    // Becuz of a typo of view
-    pub fn view(&self, id: Option<String>) -> String {
+    // return single auction item
+    pub fn get_auction_by_id(&self, id: Option<String>) -> String {
         match id {
             Some(result) => String::from_utf8(
                 self.auctions.get(

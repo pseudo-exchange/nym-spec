@@ -105,11 +105,11 @@ near deploy --wasmFile res/nym_near.wasm --accountId v0.nym.t.testnet --masterAc
 near call dev-1606630107890-6675680 create '{"asset": "thank god its friday"}' --accountId t.testnet
 
 // view state via view function call with params
-near view dev-1606630107890-6675680 view '{"id":""}' --accountId t.testnet
+near view dev-1606630107890-6675680 get_auction_by_id '{"id":"1234"}' --accountId t.testnet
 
 // call more things with diff params #yay
-near call dev-1606630107890-6675680 place_bid '{"auction_id": ""}' --accountId t.testnet
+near call dev-1606630107890-6675680 place_bid '{"auction_id": "1234"}' --accountId t.testnet
 
 // call more things with diff params #yay #youGetThePicture
-near call dev-1606630107890-6675680 cancel_auction '{"auction_id": ""}' --accountId t.testnet
+near call dev-1606630107890-6675680 cancel_auction '{"auction_id": "1234"}' --accountId t.testnet
 ```
