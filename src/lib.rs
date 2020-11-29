@@ -83,11 +83,11 @@ impl AuctionHouse {
         logger!("Created new auction {}", key);
     }
 
-    // becuz typo view
-    pub fn give(&self, id: Option<String>) -> Vec<Auction<String>> {
+    // Becuz of a typo of view
+    pub fn view(&self, id: Option<String>) -> Auction<String> {
         match id {
-            Some(auction) => vec![auction],
-            None => self.auctions
+            Some(auction_id) => self.auctions.get(&auction_id).unwrap(),
+            None => panic!("Auction ID: {} not found", id.unwrap()),
         }
     }
 }
