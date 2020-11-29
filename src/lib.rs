@@ -3,13 +3,6 @@ use near_sdk::{AccountId, Balance, BlockHeight, env, near_bindgen};
 use near_sdk::collections::UnorderedMap;
 mod util;
 
-// TODO:
-// - Auction item/struct - needs account owner, time to close, bids & bidders, asset
-// - new auction item
-// - view auction item by ID, all
-// - close/withdrawal auction - needs to be called by one of bidders or owner, release asset to highest bidder, return rewards to owner
-// - cancel
-
 #[global_allocator]
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
@@ -149,6 +142,8 @@ impl AuctionHouse {
     // finalize auction:
     // - award winner the asset, if they were highest bidder
     // - all bidders get their bid amounts back, minus fees
+    // 
+    // NOTE: anyone can call this method, as it is paid by the person wanting the final outcome
     pub fn finalize_auction(&mut self, auction_id: String) {
         // TBD!!!!!
         logger!("{}", auction_id);
