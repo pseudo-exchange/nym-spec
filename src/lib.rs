@@ -145,6 +145,14 @@ impl AuctionHouse {
             panic!("Failed to cancel auction")
         }
     }
+
+    // finalize auction:
+    // - award winner the asset, if they were highest bidder
+    // - all bidders get their bid amounts back, minus fees
+    pub fn finalize_auction(&mut self, auction_id: String) {
+        // TBD!!!!!
+        logger!("{}", auction_id);
+    }
 }
 
 #[cfg(not(target_arch = "wasm32"))]
