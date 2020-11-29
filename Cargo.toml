@@ -2,7 +2,7 @@
 name = "nym-near"
 version = "0.1.0"
 authors = ["Trevor <hello@tjtc.me>"]
-edition = "2020"
+edition = "2018"
 
 [lib]
 crate-type = ["cdylib", "rlib"]

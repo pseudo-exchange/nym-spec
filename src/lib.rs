@@ -1,22 +1,65 @@
 use borsh::{BorshDeserialize, BorshSerialize};
-use near_sdk::{env, near_bindgen};
+use near_sdk::{AccountId, Balance, BlockHeight, env, near_bindgen};
 use near_sdk::collections::UnorderedMap;
+
+// TODO:
+// - Auction item/struct - needs account owner, time to close, bids & bidders, asset
+// - new auction item
+// - view auction item by ID, all
+// - close/withdrawal auction - needs to be called by one of bidders or owner, release asset to highest bidder, return rewards to owner
+// - cancel
+// - list all auctions
 
 #[global_allocator]
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
-#[near_bindgen]
-#[derive(Default, BorshDeserialize, BorshSerialize)]
-pub struct Thing {
-    records: UnorderedMap<String, String>,
+#[derive(BorshDeserialize, BorshSerialize)]
+pub struct Auction<T> {
+    pub owner_id: AccountId, // near account
+    pub winner_account_id: Option<AccountId>,
+    pub asset: T,
+    pub close_block: BlockHeight, // Needs checking that theres no race case transactions
+    bids: UnorderedMap<AccountId, Balance>,
+}
+
+impl ToString for Auction<String> {
+    fn to_string(&self) -> String {
+        let fields = vec![self.owner_id.to_string(), self.asset.to_string(), self.close_block.to_string()];
+        fields.join("")
+    }
 }
 
 #[near_bindgen]
-impl Thing {
-    pub fn set_thing(&mut self, msg: String) {
-        env::log(b"A");
-        let account_id = env::signer_account_id();
-        self.records.insert(&account_id, &msg);
+#[derive(BorshDeserialize, BorshSerialize)]
+pub struct AuctionHouse {
+    pub auctions: UnorderedMap<String, Auction<String>>
+}
+
+impl Default for AuctionHouse {
+    fn default() -> Self {
+        AuctionHouse {
+            auctions: UnorderedMap::new(env::keccak256(env::block_timestamp().to_string().as_bytes())),
+            ..Default::default()
+        }
+    }
+}
+
+#[near_bindgen]
+impl AuctionHouse {
+    // pub fn set_thing(&mut self, msg: String) {
+    //     env::log(b"A");
+    //     let account_id = env::signer_account_id();
+    //     self.msg = &msg;
+    // }
+    pub fn create(&mut self, asset: String) {
+        let auction = Auction {
+            asset,
+            owner_id: env::signer_account_id(),
+            close_block: env::block_index() + 100,
+            winner_account_id: None,
+            bids: UnorderedMap::new(env::keccak256(env::block_index().to_string().as_bytes()))
+        };
+        self.auctions.insert(env::keccak256(auction.to_string()).to_string(), auction)
     }
 }
 
@@ -52,7 +95,7 @@ mod tests {
     fn get_nonexistent_message() {
         let context = get_context(vec![], true);
         testing_env!(context);
-        let contract = StatusMessage::default();
-        assert_eq!(None, contract.get_status("francis.near".to_string()));
+        let contract = Thing::default();
+        assert_eq!(None, contract.set_thing("francis.near".to_string()));
     }
 }
