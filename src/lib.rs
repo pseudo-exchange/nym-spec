@@ -53,7 +53,8 @@ impl Default for AuctionHouse {
 
 #[near_bindgen]
 impl AuctionHouse {
-    pub fn create(&mut self, asset: String) {
+    // TODO: Confirm an asset is not being auctioned again during an active auction
+    pub fn create(&mut self, asset: String) -> String {
         let auction = Auction {
             asset,
             owner_id: env::signer_account_id(),
@@ -67,20 +68,23 @@ impl AuctionHouse {
         };
         
         // Convert our auction to a string & compute the keccak256 hash
-        let key = String::from_utf8(env::keccak256(
+        let hash = env::keccak256(
             auction.to_string().as_bytes()
-        )).expect("Failed to create auction hash");
+        );
+        let key = String::from_utf8(hash).unwrap().to_string(); //.expect("Failed to create auction hash");
 
         // Error check for failed insertion
         if let None = self.auctions.insert(
-            &key, 
+            &key,
             &auction
         ) {
             panic!("Failed to create new auction")
         }
 
         // Use our fancy Macro, because KA CHING!
-        logger!("Created new auction {}", key);
+        logger!("Created new auction {}", &key);
+
+        key
     }
 
     // Becuz of a typo of view

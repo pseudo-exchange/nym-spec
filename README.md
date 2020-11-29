@@ -88,3 +88,28 @@ To test run:
 ```bash
 cargo test --package status-message -- --nocapture
 ```
+
+## Cool Commands:
+
+```
+// create account for the contract
+near create-account nym.t.testnet --masterAccount t.testnet --initialBalance 100
+
+// no account creation, just use testnet autogen account
+near dev-deploy --wasmFile res/nym_near.wasm
+
+// deploy to created contract account
+near deploy --wasmFile res/nym_near.wasm --accountId v0.nym.t.testnet --masterAccount nym.t.testnet
+
+// call function on deployed account, only call for things that change state
+near call dev-1606630107890-6675680 create '{"asset": "thank god its friday"}' --accountId t.testnet
+
+// view state via view function call with params
+near view dev-1606630107890-6675680 view '{"id":""}' --accountId t.testnet
+
+// call more things with diff params #yay
+near call dev-1606630107890-6675680 place_bid '{"auction_id": ""}' --accountId t.testnet
+
+// call more things with diff params #yay #youGetThePicture
+near call dev-1606630107890-6675680 cancel_auction '{"auction_id": ""}' --accountId t.testnet
+```
