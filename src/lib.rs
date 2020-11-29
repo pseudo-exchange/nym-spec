@@ -90,6 +90,18 @@ impl AuctionHouse {
             None => self.auctions
         }
     }
+
+    // removes an auction if owner called it
+    // sends back all auction bidders their funds
+    pub fn cancel_auction(&mut self, id: String) {
+        let Some(auction) = self.auctions.get(&id);
+        assert_eq!(auction.owner_id, env::signer_account_id(), "Must be owner to cancel auction");
+
+        // TODO: Send bidders their funds
+
+        // remove auction data
+        self.auctions.remove(&id);
+    }
 }
 
 #[cfg(not(target_arch = "wasm32"))]
