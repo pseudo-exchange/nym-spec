@@ -90,6 +90,39 @@ impl AuctionHouse {
             None => panic!("Auction ID: {} not found", id.unwrap()),
         }
     }
+
+    // Allow anyone to place a bid on an auction,
+    // which accepts an auction id and attached_deposit balance for contribution which buys the asset
+    // 
+    // Requires:
+    // - user to NOT be owner
+    // - auction amount needs to be greater than 0
+    // - auction needs to not be closed
+    // 
+    // Optional:
+    // - user CAN update bid by calling this fn multiple times
+    pub fn place_bid(&mut self, auction_id: String) {
+        let Some(auction) = self.auctions.get(&auction_id);
+        assert_ne!(auction.owner_id, env::signer_account_id(), "Must not be owner of auction");
+        assert!(env::attached_deposit() > 0, "Must submit bid amount of greater than zero");
+        assert!(env::block_index() > auction.close_block, "Must be an active auction");
+
+        if let None = auction.bids.insert(&env::signer_account_id(), &env::attached_deposit()) {
+            panic!("Shit got real");
+        }
+    }
+
+    // removes an auction if owner called it
+    // sends back all auction bidders their funds
+    pub fn cancel_auction(&mut self, auction_id: String) {
+        let Some(auction) = self.auctions.get(&auction_id);
+        assert_eq!(auction.owner_id, env::signer_account_id(), "Must be owner to cancel auction");
+
+        // TODO: Send bidders their funds
+
+        // remove auction data
+        self.auctions.remove(&auction_id);
+    }
 }
 
 #[cfg(not(target_arch = "wasm32"))]
