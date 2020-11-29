@@ -84,9 +84,13 @@ impl AuctionHouse {
     }
 
     // Becuz of a typo of view
-    pub fn view(&self, id: Option<String>) -> Auction<String> {
+    pub fn view(&self, id: Option<String>) -> String {
         match id {
-            Some(auction_id) => self.auctions.get(&auction_id).unwrap(),
+            Some(result) => String::from_utf8(
+                self.auctions.get(
+                    &result
+                ).try_to_vec().unwrap()
+            ).unwrap(),
             None => panic!("Auction ID: {} not found", id.unwrap()),
         }
     }
@@ -103,9 +107,18 @@ impl AuctionHouse {
     // - user CAN update bid by calling this fn multiple times
     pub fn place_bid(&mut self, auction_id: String) {
         if let Some(auction) = self.auctions.get(&auction_id) {
-            assert_ne!(auction.owner_id, env::signer_account_id(), "Must not be owner of auction");
-            assert!(env::attached_deposit() > 0, "Must submit bid amount of greater than zero");
-            assert!(env::block_index() > auction.close_block, "Must be an active auction");
+            assert_ne!(
+                auction.owner_id, env::signer_account_id(),
+                "Must not be owner of auction"
+            );
+            assert!(
+                env::attached_deposit() > 0,
+                "Must submit bid amount of greater than zero"
+            );
+            assert!(
+                env::block_index() > auction.close_block,
+                "Must be an active auction"
+            );
         } else { 
             panic!("Shit got real");
         }
@@ -115,7 +128,10 @@ impl AuctionHouse {
     // sends back all auction bidders their funds
     pub fn cancel_auction(&mut self, auction_id: String) {
         if let Some(auction) = self.auctions.get(&auction_id) {
-            assert_eq!(auction.owner_id, env::signer_account_id(), "Must be owner to cancel auction");
+            assert_eq!(
+                auction.owner_id, env::signer_account_id(),
+                "Must be owner to cancel auction"
+            );
 
             // TODO: Send bidders their funds
 
