@@ -121,7 +121,7 @@ impl AuctionHouse {
         // TODO: Send bidders their funds
 
         // remove auction data
-        self.auctions.remove(&id);
+        self.auctions.remove(&auction_id);
     }
 }
 
