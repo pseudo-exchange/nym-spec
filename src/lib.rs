@@ -1,6 +1,7 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use near_sdk::{AccountId, Balance, BlockHeight, env, near_bindgen};
 use near_sdk::collections::UnorderedMap;
+mod util;
 
 // TODO:
 // - Auction item/struct - needs account owner, time to close, bids & bidders, asset
@@ -8,7 +9,6 @@ use near_sdk::collections::UnorderedMap;
 // - view auction item by ID, all
 // - close/withdrawal auction - needs to be called by one of bidders or owner, release asset to highest bidder, return rewards to owner
 // - cancel
-// - list all auctions
 
 #[global_allocator]
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
@@ -53,11 +53,6 @@ impl Default for AuctionHouse {
 
 #[near_bindgen]
 impl AuctionHouse {
-    // pub fn set_thing(&mut self, msg: String) {
-    //     env::log(b"A");
-    //     let account_id = env::signer_account_id();
-    //     self.msg = &msg;
-    // }
     pub fn create(&mut self, asset: String) {
         let auction = Auction {
             asset,
@@ -82,6 +77,17 @@ impl AuctionHouse {
             &auction
         ) {
             panic!("Failed to create new auction")
+        }
+
+        // Use our fancy Macro, because KA CHING!
+        logger!("Created new auction {}", key);
+    }
+
+    // becuz typo view
+    pub fn give(&self, id: Option<String>) -> Vec<Auction<String>> {
+        match id {
+            Some(auction) => vec![auction],
+            None => self.auctions
         }
     }
 }
