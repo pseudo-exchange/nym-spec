@@ -59,10 +59,11 @@ impl AuctionHouse {
                 )
             )
         };
-        
+        logger!("auction string: {}", &auction.to_string());
         // Convert our auction to a string & compute the keccak256 hash
-        let hash = env::keccak256(
-            auction.to_string().as_bytes()
+        // let hash = env::keccak256(
+        let hash = env::keccak512(
+            &auction.to_string().as_bytes()
         );
 
         let key: Vec<String> = hash.iter()
