@@ -6,16 +6,17 @@ mod util;
 #[global_allocator]
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
+#[near_bindgen]
 #[derive(BorshDeserialize, BorshSerialize)]
-pub struct Auction<T> {
+pub struct Auction {
     pub owner_id: AccountId, // near account
     pub winner_account_id: Option<AccountId>,
-    pub asset: T,
+    pub asset: String,
     pub close_block: BlockHeight, // Needs checking that theres no race case transactions
     bids: UnorderedMap<AccountId, Balance>,
 }
 
-impl ToString for Auction<String> {
+impl ToString for Auction {
     fn to_string(&self) -> String {
         let fields = vec![
             self.owner_id.to_string(), 
@@ -26,10 +27,9 @@ impl ToString for Auction<String> {
     }
 }
 
-#[near_bindgen]
 #[derive(BorshDeserialize, BorshSerialize)]
 pub struct AuctionHouse {
-    pub auctions: UnorderedMap<String, Auction<String>>
+    pub auctions: UnorderedMap<String, Auction>
 }
 
 impl Default for AuctionHouse {
@@ -49,12 +49,12 @@ impl AuctionHouse {
     // TODO: Confirm an asset is not being auctioned again during an active auction
     pub fn create(&mut self, asset: String) -> String {
         let auction = Auction {
-            asset,
             owner_id: env::signer_account_id(),
-            close_block: env::block_index() + 100,
+            asset,
             winner_account_id: None,
+            close_block: env::block_index() + 100,
             bids: UnorderedMap::new(
-                env::keccak256(
+               env::keccak256(
                     env::block_index().to_string().as_bytes()
                 )
             )
@@ -64,32 +64,28 @@ impl AuctionHouse {
         let hash = env::keccak256(
             auction.to_string().as_bytes()
         );
-        let key = String::from_utf8(hash).unwrap(); //.expect("Failed to create auction hash");
 
-        // Error check for failed insertion
-        if let None = self.auctions.insert(
-            &key,
-            &auction
-        ) {
-            panic!("Failed to create new auction")
-        }
+        let key: Vec<String> = hash.iter()
+            .map(|b| format!("{:02x}", b))
+            .collect();
+
+        self.auctions.insert(&key.join(""), &auction);
 
         // Use our fancy Macro, because KA CHING!
-        logger!("Created new auction {}", &key);
+        logger!("New Auction:{}", &key.join(""));
 
-        key
+        key.join("")
     }
 
     // return single auction item
-    pub fn get_auction_by_id(&self, id: Option<String>) -> String {
-        match id {
-            Some(result) => String::from_utf8(
-                self.auctions.get(
-                    &result
-                ).try_to_vec().unwrap()
-            ).unwrap(),
-            None => panic!("Auction ID: {} not found", id.unwrap()),
-        }
+    pub fn get_auction_by_id(&self, id: String) -> String {
+        // match id {
+        //     Some(result) => self.auctions.get(
+        //         &result.try_to_vec().unwrap()
+        //     ).unwrap(),
+        //     None => panic!("Auction ID: {:?} not found", id.as_ref()),
+        // }
+        self.auctions.get(&id).unwrap().to_string()
     }
 
     // Allow anyone to place a bid on an auction,
