@@ -59,12 +59,17 @@ impl AuctionHouse {
                 )
             )
         };
-        
+        logger!("auction string: {}", &auction.to_string());
         // Convert our auction to a string & compute the keccak256 hash
         let hash = env::keccak256(
-            auction.to_string().as_bytes()
+            &auction.to_string().as_bytes()
         );
-        let key = String::from_utf8(hash).unwrap(); //.expect("Failed to create auction hash");
+        // let key = String::from_utf8(hash).unwrap(); //.expect("Failed to create auction hash");
+        let key = String::from_utf8_lossy(&hash).to_string();
+        logger!("key: {}", &key);
+
+        // TODO: Confirm an asset is not being auctioned again
+        logger!("Try Create: a {}, o {}, cb {}", &auction.asset, &auction.owner_id, &auction.close_block);
 
         // Error check for failed insertion
         if let None = self.auctions.insert(
