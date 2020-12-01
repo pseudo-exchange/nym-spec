@@ -23,6 +23,7 @@ As an admin, i want to create a sexy environment for blockchain domain name auct
 // 
 // Optional:
 // - Could return an upgrade contract account ID, in case this auction house is paused to allow FE to check and redirect new auctions dynamically
+// - Create back door -- for Auction House owners to be able to create auctions without fees
 ```
 
 **PARAMS**:
@@ -167,7 +168,7 @@ As an auction house admin, I want anyone with a valid near account ID to
 
 **PARAMS**:
 
-`AuctionId <AccountId>`, `Bid <Balance>`
+`AuctionId <Vec<u8>>`, `Bid <Balance>`
 
 **RESULT**:
 
@@ -196,24 +197,49 @@ As an auction house admin, I want anyone with a valid near account ID to
 
 **USER STORY**:
 
+As a user I want to find out if I won an auction item. I want to either send a transaction to finalize auction to get my reward for winning the auction item, or get the auction item directly if someone else finalized, or lastly get my bid amount (minus fees) returned to me if I lost the auction.
+
 **ADMIN STORY**:
+
+As an auction house admin, I want to be able to call the finalize auction to cover the transaction fee for users if I'm feeling nice. I also am okay with anyone that placed bids to call finalize to pay for transaction fees to release auction outcome.
 
 **FUNCTION**: 
 
 ```rust
 // Logic:
-// - 
+// - User inputs auction item ID
+// - User cannot call this function unless they are: A. the auction owner, B. a bidder, C. Admin
+// - Contract: If no bids
+//    - add auction item owner account id to full access key
+//    - mark auction as inactive
+//    - return
+// - Contract: Adds Winner account ID as full access key
+// - Contract: Sends Auction item owner account ID highest bid amount, minus auction percentage fee
+// - Contract: Removes Auction House access keys
+// - Contract: all bidders get their bid amounts back, minus fees
+// - Contract: Marks auction item as inactive
 ```
 
 **PARAMS**:
 
+`AuctionId <Vec<u8>>`
+
 **RESULT**:
+
+`Success`, `Error`
 
 **FEES/ECONOMICS**:
 
 1. Auction Finalization Fee: 3-5% total Sale GAS(??) - computed upon resolving final winner bid amount
+2. Auction without bids only costs txn execution gas.
 
 **POSSIBLE EXPLOITS**:
+
+* too many bids, transaction fee is too high to complete
+* too little balance remaining to return to auction bid loser
+* finalization doesnt get called, leaving
+* Auction never becoming inactive - failure to allow future auctions
+* No bidders, revert auction to owner
 
 ----
 
@@ -223,21 +249,38 @@ As an auction house admin, I want anyone with a valid near account ID to
 
 **USER STORY**:
 
+As an auction item owner, i want to be able to cancel my auction at any time between an opened auction, so I dont lose my account ID if I no longer want to auction it. I am okay with paying some fees to return any/all bid money and return the account ID back to me.
+
 **ADMIN STORY**:
+
+As an auction house admin, I want to allow any auction item owner to be able to cancel an auction to allow them to feel in control of their account IDs. This will give more trust and is what users expect to be able to do.
 
 **FUNCTION**: 
 
 ```rust
 // Logic:
-// - 
+// - User inputs auction ID for auction item
+// - Contract: Confirms auction is still active
+// - Contract: Confirms transaction signer is auction owner OR Auction house admin
+// - Contract: Transfers full access keys to auction item owner
+// - Contract: Transfers any/all bid amounts back to bidders
 ```
 
 **PARAMS**:
 
+`AuctionId <Vec<u8>>`
+
 **RESULT**:
+
+`Success`, `Error`
 
 **FEES/ECONOMICS**:
 
 1. Auction Removal Fee: GAS(10T - TBD) (function call gas * 2 + data deletion gas) - taken in addition to transaction fee
 
 **POSSIBLE EXPLOITS**:
+
+* Not the auction owner calling
+* Not enough gas to cover transfer fees for account ID
+* Not enough gas to cover transfer fees for any bid returns
+* Auction inactive
