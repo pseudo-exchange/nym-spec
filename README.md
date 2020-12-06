@@ -3,6 +3,8 @@ Nym.Near
 
 A name auction for Near.
 
+See [User Stories](./USER_STORIES.md) for detailed interaction info.
+
 ## Prerequisite
 Ensure `near-cli` is installed by running:
 
