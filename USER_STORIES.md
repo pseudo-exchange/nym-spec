@@ -284,3 +284,14 @@ As an auction house admin, I want to allow any auction item owner to be able to 
 * Not enough gas to cover transfer fees for account ID
 * Not enough gas to cover transfer fees for any bid returns
 * Auction inactive
+
+----
+
+# Scratch notes:
+
+Another thing to consider:
+Abandoned auctions -- until cron, someone has to finalize a name auction. There should be a max window to release the name.
+This could allow for the auction house to benefit by either:
+
+1. Allowing a finalized auction item to be purchased directly
+2. Allowing finalized auction item to be released (deleted) and all bid amounts paid to auction house
