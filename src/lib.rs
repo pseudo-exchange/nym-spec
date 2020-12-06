@@ -7,7 +7,7 @@ mod util;
 #[global_allocator]
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
-// const ONE_NEAR: u128 =             1_000_000_000_000_000_000_000_000;
+const ONE_NEAR: u128 = 1_000_000_000_000_000_000_000_000;
 const ACCESS_KEY_ALLOWANCE: u128 = 1_000_000_000_000_000_000_000;
 
 // fn only_admin() {
@@ -103,7 +103,24 @@ impl AuctionHouse {
 
     // TODO: Confirm an asset is not being auctioned again during an active auction
     #[payable]
-    pub fn create(&mut self, asset: AccountId) -> String {
+    #[allow(unused_variables)] // TODO: remove when impl done
+    pub fn create(
+        &mut self,
+        asset: AccountId,
+        owner_beneficiary: Option<AccountId>,
+        auction_close_block: Option<BlockHeight>,
+        auction_start_bid_amount: Option<Balance>,
+    ) -> String {
+        assert!(
+            env::is_valid_account_id(&asset.as_bytes()),
+            "Must be a valid root name"
+        );
+        assert_ne!(
+            &asset,
+            &env::signer_account_id(),
+            "Auction cannot be signer name"
+        );
+
         let auction = Auction {
             owner_id: env::signer_account_id(),
             asset,
@@ -116,6 +133,19 @@ impl AuctionHouse {
         let hash = env::keccak256(&auction.to_string().as_bytes());
 
         let key: Vec<String> = hash.iter().map(|b| format!("{:02x}", b)).collect();
+
+        // Check if there is already an auction with this same matching hash
+        // AND if that auction is ongoing (ongoing = current block < closing block)
+        let previous_auction = self.auctions.get(&key.join(""));
+        match previous_auction {
+            Some(previous_auction) => {
+                assert!(
+                    env::block_index() > previous_auction.close_block,
+                    "Auction is already happening"
+                );
+            }
+            None => (),
+        }
 
         self.auctions.insert(&key.join(""), &auction);
 
@@ -250,6 +280,13 @@ mod tests {
     use near_sdk::MockedBlockchain;
     use near_sdk::{testing_env, VMContext};
 
+    fn create_blank_auction_house() -> AuctionHouse {
+        AuctionHouse::new(
+            "escrow_near".to_string(),
+            Base58PublicKey { 0: vec![0, 1, 2] },
+        )
+    }
+
     fn get_context(input: Vec<u8>, is_view: bool) -> VMContext {
         VMContext {
             current_account_id: "alice_near".to_string(),
@@ -274,13 +311,9 @@ mod tests {
     #[test]
     fn initialize_constructor() {
         let context = get_context(vec![], true);
-        let context2 = get_context(vec![], true);
         testing_env!(context);
         // Init with escrow data
-        let contract = AuctionHouse::new(
-            "escrow_near".to_string(),
-            Base58PublicKey { 0: vec![0, 1, 2] },
-        );
+        let contract = create_blank_auction_house();
 
         assert_eq!(
             false, contract.paused,
@@ -299,11 +332,81 @@ mod tests {
             "Escrow account public key is set appropriately"
         );
 
-        let signer_id = context2.signer_account_id;
-        assert_eq!(
-            signer_id,
-            env::current_account_id(),
-            "Ensure the contract is owned by deployment signer"
+        // TODO: Figure out how to test this!
+        // assert_eq!(
+        //     env::signer_account_pk(),
+        //     // HOw do i get contract full access keys list?,
+        //     "Ensure the contract is owned by deployment signer"
+        // );
+    }
+
+    #[test]
+    #[should_panic(expected = "Auction is already happening")]
+    fn new_auction_item_same_during_auction() {
+        let context = get_context(vec![], true);
+        testing_env!(context);
+        // Init with escrow data
+        let mut contract = create_blank_auction_house();
+
+        // call the contract create twice, so we can panic when the auction item already exists
+        // AND is active (within the current block height)
+        contract.create(
+            "zanzibar_near".to_string(),
+            Some(env::signer_account_id()),
+            Some(env::block_index() + 1_000),
+            Some(1 * ONE_NEAR),
         );
+        contract.create(
+            "zanzibar_near".to_string(),
+            Some(env::signer_account_id()),
+            Some(env::block_index() + 1_000),
+            Some(1 * ONE_NEAR),
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "Auction cannot be signer name")]
+    fn new_auction_item_not_same_as_signer() {
+        let context = get_context(vec![], true);
+        testing_env!(context);
+        // Init with escrow data
+        let mut contract = create_blank_auction_house();
+
+        // call the contract create twice, so we can panic when the auction item already exists
+        // AND is active (within the current block height)
+        contract.create(
+            "bob_near".to_string(),
+            Some(env::signer_account_id()),
+            Some(env::block_index() + 1_000),
+            Some(1 * ONE_NEAR),
+        );
+    }
+
+    #[test]
+    fn create_auction_item() {
+        let context = get_context(vec![], true);
+        testing_env!(context);
+        // Init with escrow data
+        let mut contract = create_blank_auction_house();
+
+        // check all the auction item THANGS
+        contract.create(
+            "zanzibar_near".to_string(),
+            Some(env::signer_account_id()),
+            Some(env::block_index() + 1_000),
+            Some(1 * ONE_NEAR),
+        );
+
+        assert_eq!(
+            1,
+            contract.auctions.len(),
+            "Contract: Creates new auction item"
+        );
+
+        // assert!("Contract: Adds Auction House as full access key");
+
+        // assert!("Contract: Removes all other access keys");
+
+        // assert!("Contract: Returns newly created auction item ID");
     }
 }
