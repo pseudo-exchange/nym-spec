@@ -96,15 +96,24 @@ cargo test --package status-message -- --nocapture
 ```
 // create account for the contract
 near create-account nym.t.testnet --masterAccount t.testnet --initialBalance 100
+near create-account escrowbar.t.testnet --masterAccount t.testnet --initialBalance 100
+near create-account auction.t.testnet --masterAccount t.testnet --initialBalance 100
 
 // no account creation, just use testnet autogen account
-near dev-deploy --wasmFile res/nym_near.wasm
+NEAR_ENV=testnet near deploy --accountId t.testnet --wasmFile res/nym_near.wasm --initFunction new --initArgs '{"escrow_account_id":"t.testnet","escrow_public_key":"ed25519:4cKe5SWR4QTwc7MTLrzNuC633gLzFg9FgiygPVzKYvb1"}'
+
+NEAR_ENV=testnet near call t.testnet create '{"asset": "tc", "owner_beneficiary": "t.testnet", "auction_start_bid_amount": 100, "auction_close_block": null}' --accountId t.testnet
+
 
 // deploy to created contract account
 near deploy --wasmFile res/nym_near.wasm --accountId v0.nym.t.testnet --masterAccount nym.t.testnet
 
 // call function on deployed account, only call for things that change state
 near call dev-1606630107890-6675680 create '{"asset": "thank god its friday"}' --accountId t.testnet
+
+near call dev-1606630107890-6675680 create '{"asset": "tc", "owner_beneficiary": "t.testnet", "auction_start_bid_amount": 100, "auction_close_block": null}' --accountId t.testnet
+
+"auction_close_block": "", 
 
 // view state via view function call with params
 near view dev-1606630107890-6675680 get_auction_by_id '{"id":"1234"}' --accountId t.testnet

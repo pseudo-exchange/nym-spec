@@ -7,8 +7,9 @@ mod util;
 #[global_allocator]
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
-const ONE_NEAR: u128 = 1_000_000_000_000_000_000_000_000;
+pub const ONE_NEAR: u128 = 1_000_000_000_000_000_000_000_000;
 const ACCESS_KEY_ALLOWANCE: u128 = 1_000_000_000_000_000_000_000;
+const CLOSE_BLOCK_OFFSET: u64 = 1_000_000;
 
 // fn only_admin() {
 //     // require only admins
@@ -49,7 +50,7 @@ pub struct Auction {
     pub owner_id: AccountId, // near account
     pub winner_account_id: Option<AccountId>,
     pub asset: AccountId,
-    pub close_block: BlockHeight, // Needs checking that theres no race case transactions
+    pub close_block: Option<BlockHeight>, // Needs checking that theres no race case transactions
     bids: UnorderedMap<AccountId, Balance>,
 }
 
@@ -58,7 +59,7 @@ impl ToString for Auction {
         let fields = vec![
             self.owner_id.to_string(),
             self.asset.to_string(),
-            self.close_block.to_string(),
+            self.close_block.unwrap().to_string(),
         ];
         fields.join("")
     }
@@ -93,6 +94,10 @@ impl AuctionHouse {
     pub fn new(escrow_account_id: AccountId, escrow_public_key: Base58PublicKey) -> Self {
         // Make absolutely sure this contract doesnt get state removed easily
         assert!(!env::state_exists(), "The contract is already initialized");
+        assert!(
+            env::is_valid_account_id(&escrow_account_id.as_bytes()),
+            "Must be a valid escrow contract id"
+        );
         AuctionHouse {
             paused: false,
             auctions: UnorderedMap::new(env::keccak256(env::block_index().to_string().as_bytes())),
@@ -107,9 +112,9 @@ impl AuctionHouse {
     pub fn create(
         &mut self,
         asset: AccountId,
-        owner_beneficiary: Option<AccountId>,
+        owner_beneficiary: AccountId,
         auction_close_block: Option<BlockHeight>,
-        auction_start_bid_amount: Option<Balance>,
+        auction_start_bid_amount: Balance,
     ) -> String {
         assert!(
             env::is_valid_account_id(&asset.as_bytes()),
@@ -121,11 +126,16 @@ impl AuctionHouse {
             "Auction cannot be signer name"
         );
 
+        let close_block = match auction_close_block {
+            Some(close_block) => close_block,
+            None => env::block_index() + CLOSE_BLOCK_OFFSET,
+        };
+
         let auction = Auction {
             owner_id: env::signer_account_id(),
             asset,
             winner_account_id: None,
-            close_block: env::block_index() + 100,
+            close_block: Some(close_block),
             bids: UnorderedMap::new(env::keccak256(env::block_index().to_string().as_bytes())),
         };
         logger!("auction string: {}", &auction.to_string());
@@ -140,7 +150,7 @@ impl AuctionHouse {
         match previous_auction {
             Some(previous_auction) => {
                 assert!(
-                    env::block_index() > previous_auction.close_block,
+                    env::block_index() > previous_auction.close_block.unwrap(),
                     "Auction is already happening"
                 );
             }
@@ -209,7 +219,7 @@ impl AuctionHouse {
                     "Must submit bid amount of greater than zero"
                 );
                 assert!(
-                    env::block_index() > auction.close_block,
+                    env::block_index() > auction.close_block.unwrap(),
                     "Must be an active auction"
                 );
             }
@@ -343,24 +353,32 @@ mod tests {
     #[test]
     #[should_panic(expected = "Auction is already happening")]
     fn new_auction_item_same_during_auction() {
-        let context = get_context(vec![], true);
-        testing_env!(context);
+        let mut context = get_context(vec![], true);
+        testing_env!(context.clone());
         // Init with escrow data
         let mut contract = create_blank_auction_house();
+        // ----------------------------------------------------------------
+        // THIS IS HOW THE BLOCKCHAIN PROGRESSES STATE
+        // IF YOU ARE USING ANY TYPE OF PROMISE OR NON-VIEW FN,
+        // YOU MUST CHANGE "is_view" TO SHOW THE TEST RUNNER TO DO THE SHITS
+        // ----------------------------------------------------------------
+        context.is_view = false;
+        testing_env!(context.clone());
 
         // call the contract create twice, so we can panic when the auction item already exists
         // AND is active (within the current block height)
         contract.create(
             "zanzibar_near".to_string(),
-            Some(env::signer_account_id()),
-            Some(env::block_index() + 1_000),
-            Some(1 * ONE_NEAR),
+            "yokohama_near".to_string(),
+            Some(1_000),
+            1 * ONE_NEAR,
         );
+        testing_env!(context.clone());
         contract.create(
             "zanzibar_near".to_string(),
-            Some(env::signer_account_id()),
-            Some(env::block_index() + 1_000),
-            Some(1 * ONE_NEAR),
+            "yokohama_near".to_string(),
+            Some(1_000),
+            1 * ONE_NEAR,
         );
     }
 
@@ -376,9 +394,9 @@ mod tests {
         // AND is active (within the current block height)
         contract.create(
             "bob_near".to_string(),
-            Some(env::signer_account_id()),
+            env::signer_account_id(),
             Some(env::block_index() + 1_000),
-            Some(1 * ONE_NEAR),
+            1 * ONE_NEAR,
         );
     }
 
@@ -392,9 +410,9 @@ mod tests {
         // check all the auction item THANGS
         contract.create(
             "zanzibar_near".to_string(),
-            Some(env::signer_account_id()),
+            env::signer_account_id(),
             Some(env::block_index() + 1_000),
-            Some(1 * ONE_NEAR),
+            1 * ONE_NEAR,
         );
 
         assert_eq!(

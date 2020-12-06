@@ -22,7 +22,6 @@ As an admin, i want to create a sexy environment for blockchain domain name auct
 // - ensure contract can forward Ⓝ profit balance to multisig owners (TC & ZK)
 // 
 // Optional:
-// - Could return an upgrade contract account ID, in case this auction house is paused to allow FE to check and redirect new auctions dynamically
 // - Create back door -- for Auction House owners to be able to create auctions without fees
 ```
 
