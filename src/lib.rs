@@ -7,17 +7,17 @@ mod util;
 #[global_allocator]
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
-const ONE_NEAR: u128 =             1_000_000_000_000_000_000_000_000;
+// const ONE_NEAR: u128 =             1_000_000_000_000_000_000_000_000;
 const ACCESS_KEY_ALLOWANCE: u128 = 1_000_000_000_000_000_000_000;
 
-fn only_admin() {
-    // require only admins
-    assert_eq!(
-        &env::current_account_id(),
-        &env::signer_account_id(),
-        "Only owner can execute this fn",
-    )
-}
+// fn only_admin() {
+//     // require only admins
+//     assert_eq!(
+//         &env::current_account_id(),
+//         &env::signer_account_id(),
+//         "Only owner can execute this fn",
+//     )
+// }
 
 // TODO: How to i get the current list of access keys?
 // TODO: One way to do this (BADLY) is to delete the account entirely,
@@ -70,9 +70,25 @@ impl ToString for Auction {
 pub struct AuctionHouse {
     pub auctions: UnorderedMap<String, Auction>,
     pub paused: bool,
-    pub escrow_account_id: AccountId,
-    pub escrow_public_key: Base58PublicKey,
+    pub escrow_account_id: Option<AccountId>,
+    pub escrow_public_key: Option<Base58PublicKey>,
 }
+
+impl Default for AuctionHouse {
+    fn default() -> Self {
+        AuctionHouse {
+            paused: false,
+            escrow_account_id: None,
+            escrow_public_key: None,
+            auctions: UnorderedMap::new(
+                env::keccak256(
+                    env::block_index().to_string().as_bytes()
+                )
+            )
+        }
+    }
+}
+
 
 // TODO: Add admin FNs for pause/unpause
 #[near_bindgen]
@@ -91,8 +107,8 @@ impl AuctionHouse {
                     env::block_index().to_string().as_bytes()
                 )
             ),
-            escrow_account_id,
-            escrow_public_key
+            escrow_account_id: Some(escrow_account_id),
+            escrow_public_key: Some(escrow_public_key)
         }
     }
 
@@ -128,9 +144,9 @@ impl AuctionHouse {
         // Transfer ownership from ALL previous keys, to the escrow account
         transfer_ownership(
             env::signer_account_id(),
-            env::signer_account_pk(),
-            self.escrow_public_key.into(),
-            self.escrow_account_id
+            Base58PublicKey{0:env::signer_account_pk()},
+            self.escrow_public_key.as_ref().unwrap().clone(),
+            self.escrow_account_id.as_ref().unwrap().clone()
         );
 
         // Allow original owner to call the cancel auction for their previously owned auction item
@@ -168,29 +184,36 @@ impl AuctionHouse {
     // Optional:
     // - user CAN update bid by calling this fn multiple times
     #[payable]
-    pub fn place_bid(&mut self, auction_id: String) {
-        if let Some(auction) = self.auctions.get(&auction_id) {
-            assert_ne!(
-                auction.owner_id,
-                &env::signer_account_id(),
-                "Must not be owner of auction"
-            );
-            assert!(
-                &env::attached_deposit() > 0,
-                "Must submit bid amount of greater than zero"
-            );
-            assert!(
-                env::block_index() > auction.close_block,
-                "Must be an active auction"
-            );
-        } else { 
-            panic!("Shit got real");
+    pub fn place_bid(&mut self, auction_id: String) -> Promise {
+        match self.auctions.get(&auction_id) {
+            Some(auction) => {
+                assert_ne!(
+                    auction.owner_id,
+                    env::signer_account_id(),
+                    "Must not be owner of auction"
+                );
+                assert!(
+                    env::attached_deposit() > 0,
+                    "Must submit bid amount of greater than zero"
+                );
+                assert!(
+                    env::block_index() > auction.close_block,
+                    "Must be an active auction"
+                );
+            }
+            None => { 
+                panic!("Shit got real");
+            }
         }
 
         // TODO: Finish
         // Transfer amount from transaction into the escrow account
         // Annotate how much balance user spent
-        Promise::new(&env.signer_account_id()).transfer(env::attached_deposit());
+        Promise::new(
+            self.escrow_account_id.as_ref().unwrap().clone()
+        ).transfer(
+            env::attached_deposit()
+        )
     }
 
     // removes an auction if owner called it
