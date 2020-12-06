@@ -1,10 +1,14 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use near_sdk::{AccountId, Balance, BlockHeight, env, near_bindgen};
+use near_sdk::json_types::{Base58PublicKey};
 use near_sdk::collections::UnorderedMap;
 mod util;
 
 #[global_allocator]
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
+
+const ONE_NEAR: u128 =             1_000_000_000_000_000_000_000_000;
+const ACCESS_KEY_ALLOWANCE: u128 = 1_000_000_000_000_000_000_000;
 
 #[near_bindgen]
 #[derive(BorshDeserialize, BorshSerialize)]
@@ -29,23 +33,33 @@ impl ToString for Auction {
 
 #[derive(BorshDeserialize, BorshSerialize)]
 pub struct AuctionHouse {
-    pub auctions: UnorderedMap<String, Auction>
-}
-
-impl Default for AuctionHouse {
-    fn default() -> Self {
-        AuctionHouse {
-            auctions: UnorderedMap::new(
-                env::keccak256(
-                    env::block_index().to_string().as_bytes()
-                )
-            )
-        }
-    }
+    pub auctions: UnorderedMap<String, Auction>,
+    pub paused: bool,
+    pub escrow_account_id: AccountId,
+    escrow_public_key: Base58PublicKey,
 }
 
 #[near_bindgen]
 impl AuctionHouse {
+    /// Constructor:
+    /// See notes regarding escrow contract, ownership & state  separation
+    /// This method instantiates new auction house contract with baseline config
+    #[init]
+    pub fn new(escrow_account_id: AccountId, escrow_public_key: Base58PublicKey) -> Self {
+        // Make absolutely sure this contract doesnt get state removed easily
+        assert!(!env::state_exists(), "The contract is already initialized");
+        AuctionHouse {
+            paused: false,
+            auctions: UnorderedMap::new(
+                env::keccak256(
+                    env::block_index().to_string().as_bytes()
+                )
+            ),
+            escrow_account_id,
+            escrow_public_key
+        }
+    }
+
     // TODO: Confirm an asset is not being auctioned again during an active auction
     pub fn create(&mut self, asset: String) -> String {
         let auction = Auction {
@@ -61,8 +75,7 @@ impl AuctionHouse {
         };
         logger!("auction string: {}", &auction.to_string());
         // Convert our auction to a string & compute the keccak256 hash
-        // let hash = env::keccak256(
-        let hash = env::keccak512(
+        let hash = env::keccak256(
             &auction.to_string().as_bytes()
         );
 
