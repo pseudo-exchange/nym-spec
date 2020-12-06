@@ -1,5 +1,5 @@
 use borsh::{BorshDeserialize, BorshSerialize};
-use near_sdk::{AccountId, Balance, BlockHeight, env, near_bindgen};
+use near_sdk::{AccountId, Balance, BlockHeight, Promise, env, near_bindgen};
 use near_sdk::json_types::{Base58PublicKey};
 use near_sdk::collections::UnorderedMap;
 mod util;
@@ -9,6 +9,41 @@ static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
 const ONE_NEAR: u128 =             1_000_000_000_000_000_000_000_000;
 const ACCESS_KEY_ALLOWANCE: u128 = 1_000_000_000_000_000_000_000;
+
+fn only_admin() {
+    // require only admins
+    assert_eq!(
+        &env::current_account_id(),
+        &env::signer_account_id(),
+        "Only owner can execute this fn",
+    )
+}
+
+// TODO: How to i get the current list of access keys?
+// TODO: One way to do this (BADLY) is to delete the account entirely,
+// cause this contract to be beneficiary,
+// then recreate it and send overflow balance to previous owner -- this is not a great solution
+fn transfer_ownership(
+    from_account_id: AccountId,
+    from_public_key: Base58PublicKey,
+    to_public_key: Base58PublicKey,
+    to_account_id: AccountId
+) -> Promise {
+    // TODO: Remove once fully tested
+    logger!("from_account_id: {:?}", &from_account_id);
+    logger!("from_public_key: {:?}", &from_public_key);
+    logger!("to_public_key: {:?}", &to_public_key);
+    logger!("to_account_id: {:?}", &to_account_id);
+
+    // Here be the magix
+    // First grant all access keys to the escrow account
+    Promise::new(to_account_id)
+        .add_full_access_key(to_public_key.into());
+    // Next remove all other access keys, so only the escrow account "owns" the 
+    // TODO: Make sure this deletes all PKs -- I dont think i found that yet
+    Promise::new(from_account_id)
+        .delete_key(from_public_key.into())
+}
 
 #[near_bindgen]
 #[derive(BorshDeserialize, BorshSerialize)]
@@ -36,7 +71,7 @@ pub struct AuctionHouse {
     pub auctions: UnorderedMap<String, Auction>,
     pub paused: bool,
     pub escrow_account_id: AccountId,
-    escrow_public_key: Base58PublicKey,
+    pub escrow_public_key: Base58PublicKey,
 }
 
 #[near_bindgen]
@@ -61,6 +96,7 @@ impl AuctionHouse {
     }
 
     // TODO: Confirm an asset is not being auctioned again during an active auction
+    #[payable]
     pub fn create(&mut self, asset: String) -> String {
         let auction = Auction {
             owner_id: env::signer_account_id(),
@@ -87,6 +123,14 @@ impl AuctionHouse {
 
         // Use our fancy Macro, because KA CHING!
         logger!("New Auction:{}", &key.join(""));
+
+        // Transfer ownership from ALL previous keys, to the escrow account
+        transfer_ownership(
+            env::signer_account_id(),
+            env::signer_account_pk() as Base58PublicKey,
+            self.escrow_public_key.into(),
+            self.escrow_account_id
+        );
 
         key.join("")
     }
@@ -147,6 +191,15 @@ impl AuctionHouse {
         } else {
             panic!("Failed to cancel auction")
         }
+
+        // TODO:
+        // // Transfer ownership from escrow account, back to the original owner account
+        // transfer_ownership(
+        //     env::signer_account_id(),
+        //     env::signer_account_pk() as Base58PublicKey,
+        //     self.escrow_public_key.into(),
+        //     self.escrow_account_id
+        // );
     }
 
     // finalize auction:
@@ -157,6 +210,15 @@ impl AuctionHouse {
     pub fn finalize_auction(&mut self, auction_id: String) {
         // TBD!!!!!
         logger!("{}", auction_id);
+
+        // TODO:
+        // // Transfer ownership from escrow account, to the new owner account
+        // transfer_ownership(
+        //     env::signer_account_id(),
+        //     env::signer_account_pk() as Base58PublicKey,
+        //     self.escrow_public_key.into(),
+        //     self.escrow_account_id
+        // );
     }
 }
 
