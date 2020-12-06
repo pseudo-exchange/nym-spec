@@ -1,7 +1,7 @@
 use borsh::{BorshDeserialize, BorshSerialize};
-use near_sdk::{AccountId, Balance, BlockHeight, Promise, env, near_bindgen};
-use near_sdk::json_types::{Base58PublicKey};
 use near_sdk::collections::UnorderedMap;
+use near_sdk::json_types::Base58PublicKey;
+use near_sdk::{env, near_bindgen, AccountId, Balance, BlockHeight, Promise};
 mod util;
 
 #[global_allocator]
@@ -27,7 +27,7 @@ fn transfer_ownership(
     from_account_id: AccountId,
     from_public_key: Base58PublicKey,
     to_public_key: Base58PublicKey,
-    to_account_id: AccountId
+    to_account_id: AccountId,
 ) -> Promise {
     // TODO: Remove once fully tested
     logger!("from_account_id: {:?}", &from_account_id);
@@ -37,12 +37,10 @@ fn transfer_ownership(
 
     // Here be the magix
     // First grant all access keys to the escrow account
-    Promise::new(to_account_id)
-        .add_full_access_key(to_public_key.into());
-    // Next remove all other access keys, so only the escrow account "owns" the 
+    Promise::new(to_account_id).add_full_access_key(to_public_key.into());
+    // Next remove all other access keys, so only the escrow account "owns" the
     // TODO: Make sure this deletes all PKs -- I dont think i found that yet
-    Promise::new(from_account_id)
-        .delete_key(from_public_key.into())
+    Promise::new(from_account_id).delete_key(from_public_key.into())
 }
 
 #[near_bindgen]
@@ -50,7 +48,7 @@ fn transfer_ownership(
 pub struct Auction {
     pub owner_id: AccountId, // near account
     pub winner_account_id: Option<AccountId>,
-    pub asset: String,
+    pub asset: AccountId,
     pub close_block: BlockHeight, // Needs checking that theres no race case transactions
     bids: UnorderedMap<AccountId, Balance>,
 }
@@ -58,9 +56,9 @@ pub struct Auction {
 impl ToString for Auction {
     fn to_string(&self) -> String {
         let fields = vec![
-            self.owner_id.to_string(), 
-            self.asset.to_string(), 
-            self.close_block.to_string()
+            self.owner_id.to_string(),
+            self.asset.to_string(),
+            self.close_block.to_string(),
         ];
         fields.join("")
     }
@@ -80,15 +78,10 @@ impl Default for AuctionHouse {
             paused: false,
             escrow_account_id: None,
             escrow_public_key: None,
-            auctions: UnorderedMap::new(
-                env::keccak256(
-                    env::block_index().to_string().as_bytes()
-                )
-            )
+            auctions: UnorderedMap::new(env::keccak256(env::block_index().to_string().as_bytes())),
         }
     }
 }
-
 
 // TODO: Add admin FNs for pause/unpause
 #[near_bindgen]
@@ -102,39 +95,27 @@ impl AuctionHouse {
         assert!(!env::state_exists(), "The contract is already initialized");
         AuctionHouse {
             paused: false,
-            auctions: UnorderedMap::new(
-                env::keccak256(
-                    env::block_index().to_string().as_bytes()
-                )
-            ),
+            auctions: UnorderedMap::new(env::keccak256(env::block_index().to_string().as_bytes())),
             escrow_account_id: Some(escrow_account_id),
-            escrow_public_key: Some(escrow_public_key)
+            escrow_public_key: Some(escrow_public_key),
         }
     }
 
     // TODO: Confirm an asset is not being auctioned again during an active auction
     #[payable]
-    pub fn create(&mut self, asset: String) -> String {
+    pub fn create(&mut self, asset: AccountId) -> String {
         let auction = Auction {
             owner_id: env::signer_account_id(),
             asset,
             winner_account_id: None,
             close_block: env::block_index() + 100,
-            bids: UnorderedMap::new(
-               env::keccak256(
-                    env::block_index().to_string().as_bytes()
-                )
-            )
+            bids: UnorderedMap::new(env::keccak256(env::block_index().to_string().as_bytes())),
         };
         logger!("auction string: {}", &auction.to_string());
         // Convert our auction to a string & compute the keccak256 hash
-        let hash = env::keccak256(
-            &auction.to_string().as_bytes()
-        );
+        let hash = env::keccak256(&auction.to_string().as_bytes());
 
-        let key: Vec<String> = hash.iter()
-            .map(|b| format!("{:02x}", b))
-            .collect();
+        let key: Vec<String> = hash.iter().map(|b| format!("{:02x}", b)).collect();
 
         self.auctions.insert(&key.join(""), &auction);
 
@@ -144,20 +125,21 @@ impl AuctionHouse {
         // Transfer ownership from ALL previous keys, to the escrow account
         transfer_ownership(
             env::signer_account_id(),
-            Base58PublicKey{0:env::signer_account_pk()},
+            Base58PublicKey {
+                0: env::signer_account_pk(),
+            },
             self.escrow_public_key.as_ref().unwrap().clone(),
-            self.escrow_account_id.as_ref().unwrap().clone()
+            self.escrow_account_id.as_ref().unwrap().clone(),
         );
 
         // Allow original owner to call the cancel auction for their previously owned auction item
         // TODO: Do i need to do this? Or is it just super duper nice because im a nice person?
-        Promise::new(env::signer_account_id())
-            .add_access_key(
-                env::signer_account_pk(),
-                ACCESS_KEY_ALLOWANCE, // TODO: Check this value is right for this FN!
-                env::signer_account_id(),
-                b"cancel_auction".to_vec(),
-            );
+        Promise::new(env::signer_account_id()).add_access_key(
+            env::signer_account_pk(),
+            ACCESS_KEY_ALLOWANCE, // TODO: Check this value is right for this FN!
+            env::signer_account_id(),
+            b"cancel_auction".to_vec(),
+        );
 
         key.join("")
     }
@@ -175,12 +157,12 @@ impl AuctionHouse {
 
     // Allow anyone to place a bid on an auction,
     // which accepts an auction id and attached_deposit balance for contribution which buys the asset
-    // 
+    //
     // Requires:
     // - user to NOT be owner
     // - auction amount needs to be greater than 0
     // - auction needs to not be closed
-    // 
+    //
     // Optional:
     // - user CAN update bid by calling this fn multiple times
     #[payable]
@@ -201,7 +183,7 @@ impl AuctionHouse {
                     "Must be an active auction"
                 );
             }
-            None => { 
+            None => {
                 panic!("Shit got real");
             }
         }
@@ -209,11 +191,8 @@ impl AuctionHouse {
         // TODO: Finish
         // Transfer amount from transaction into the escrow account
         // Annotate how much balance user spent
-        Promise::new(
-            self.escrow_account_id.as_ref().unwrap().clone()
-        ).transfer(
-            env::attached_deposit()
-        )
+        Promise::new(self.escrow_account_id.as_ref().unwrap().clone())
+            .transfer(env::attached_deposit())
     }
 
     // removes an auction if owner called it
@@ -221,7 +200,8 @@ impl AuctionHouse {
     pub fn cancel_auction(&mut self, auction_id: String) {
         if let Some(auction) = self.auctions.get(&auction_id) {
             assert_eq!(
-                auction.owner_id, env::signer_account_id(),
+                auction.owner_id,
+                env::signer_account_id(),
                 "Must be owner to cancel auction"
             );
 
@@ -246,7 +226,7 @@ impl AuctionHouse {
     // finalize auction:
     // - award winner the asset, if they were highest bidder
     // - all bidders get their bid amounts back, minus fees
-    // 
+    //
     // NOTE: anyone can call this method, as it is paid by the person wanting the final outcome
     pub fn finalize_auction(&mut self, auction_id: String) {
         // TBD!!!!!
@@ -292,10 +272,38 @@ mod tests {
     }
 
     #[test]
-    fn get_nonexistent_message() {
+    fn initialize_constructor() {
         let context = get_context(vec![], true);
+        let context2 = get_context(vec![], true);
         testing_env!(context);
-        let contract = Thing::default();
-        assert_eq!(None, contract.set_thing("francis.near".to_string()));
+        // Init with escrow data
+        let contract = AuctionHouse::new(
+            "escrow_near".to_string(),
+            Base58PublicKey { 0: vec![0, 1, 2] },
+        );
+
+        assert_eq!(
+            false, contract.paused,
+            "Auction MUST not be paused initially"
+        );
+
+        assert_eq!(
+            "escrow_near".to_string(),
+            contract.escrow_account_id.unwrap(),
+            "Escrow account ID is set appropriately"
+        );
+
+        assert_eq!(
+            Base58PublicKey { 0: vec![0, 1, 2] },
+            contract.escrow_public_key.unwrap(),
+            "Escrow account public key is set appropriately"
+        );
+
+        let signer_id = context2.signer_account_id;
+        assert_eq!(
+            signer_id,
+            env::current_account_id(),
+            "Ensure the contract is owned by deployment signer"
+        );
     }
 }
