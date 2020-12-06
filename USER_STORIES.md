@@ -289,6 +289,9 @@ As an auction house admin, I want to allow any auction item owner to be able to 
 
 # Scratch notes:
 
+Thoughts on escrow:
+Since contracts can be easily upgraded, and state is therefore completely obliterated -- an account for only escrow should be used. It would be something that can own all accounts used during an auction, have 0 full access keys for the escrow contract itself, and live within the namespace of "escrow.nym.near" or similar. This escrow can own both names & colleteral, meaning that if the state of "auction.nym.near" was ever completely wiped, the escrow assets were not affected. It also seems easier to make transfers to/from an escrow account rather than keeping within the auction contract/account.
+
 Another thing to consider:
 Abandoned auctions -- until cron, someone has to finalize a name auction. There should be a max window to release the name.
 This could allow for the auction house to benefit by either:
