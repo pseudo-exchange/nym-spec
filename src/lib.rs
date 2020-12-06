@@ -74,6 +74,7 @@ pub struct AuctionHouse {
     pub escrow_public_key: Base58PublicKey,
 }
 
+// TODO: Add admin FNs for pause/unpause
 #[near_bindgen]
 impl AuctionHouse {
     /// Constructor:
@@ -127,10 +128,20 @@ impl AuctionHouse {
         // Transfer ownership from ALL previous keys, to the escrow account
         transfer_ownership(
             env::signer_account_id(),
-            env::signer_account_pk() as Base58PublicKey,
+            env::signer_account_pk(),
             self.escrow_public_key.into(),
             self.escrow_account_id
         );
+
+        // Allow original owner to call the cancel auction for their previously owned auction item
+        // TODO: Do i need to do this? Or is it just super duper nice because im a nice person?
+        Promise::new(env::signer_account_id())
+            .add_access_key(
+                env::signer_account_pk(),
+                ACCESS_KEY_ALLOWANCE, // TODO: Check this value is right for this FN!
+                env::signer_account_id(),
+                b"cancel_auction".to_vec(),
+            );
 
         key.join("")
     }
@@ -156,14 +167,16 @@ impl AuctionHouse {
     // 
     // Optional:
     // - user CAN update bid by calling this fn multiple times
+    #[payable]
     pub fn place_bid(&mut self, auction_id: String) {
         if let Some(auction) = self.auctions.get(&auction_id) {
             assert_ne!(
-                auction.owner_id, env::signer_account_id(),
+                auction.owner_id,
+                &env::signer_account_id(),
                 "Must not be owner of auction"
             );
             assert!(
-                env::attached_deposit() > 0,
+                &env::attached_deposit() > 0,
                 "Must submit bid amount of greater than zero"
             );
             assert!(
@@ -173,6 +186,11 @@ impl AuctionHouse {
         } else { 
             panic!("Shit got real");
         }
+
+        // TODO: Finish
+        // Transfer amount from transaction into the escrow account
+        // Annotate how much balance user spent
+        Promise::new(&env.signer_account_id()).transfer(env::attached_deposit());
     }
 
     // removes an auction if owner called it
