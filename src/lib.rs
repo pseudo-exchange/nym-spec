@@ -1,4 +1,5 @@
 use borsh::{BorshDeserialize, BorshSerialize};
+use near_sdk::serde_json::{json};
 use near_sdk::collections::UnorderedMap;
 use near_sdk::json_types::Base58PublicKey;
 use near_sdk::{env, near_bindgen, AccountId, Balance, BlockHeight, Promise};
@@ -7,9 +8,10 @@ mod util;
 #[global_allocator]
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
+// Ⓝa Ⓝa Ⓝa Ⓝa Ⓝa Ⓝa Ⓝa - Batmannnnnnnn
 pub const ONE_NEAR: u128 = 1_000_000_000_000_000_000_000_000;
 const ACCESS_KEY_ALLOWANCE: u128 = 1_000_000_000_000_000_000_000;
-const NEW_ACCOUNT_GAS_FEE: u128 = 300_000_000_000_000;
+const NEW_ACCOUNT_GAS_FEE: u64 = 300_000_000_000_000;
 const NEW_ACCOUNT_BALANCE: u128 = 1_000_000_000_000_000_000_000;
 const CLOSE_BLOCK_OFFSET: u64 = 1_000_000;
 
@@ -92,60 +94,63 @@ impl AuctionHouse {
     /// Constructor:
     /// See notes regarding escrow contract, ownership & state  separation
     /// This method instantiates new auction house contract with baseline config
-    #[init]
-    pub fn new(escrow_account_id: AccountId, escrow_public_key: Base58PublicKey) -> Self {
-        // Make absolutely sure this contract doesnt get state removed easily
-        assert!(!env::state_exists(), "The contract is already initialized");
-        assert!(
-            env::is_valid_account_id(&escrow_account_id.as_bytes()),
-            "Must be a valid escrow contract id"
-        );
-        AuctionHouse {
-            paused: false,
-            auctions: UnorderedMap::new(env::keccak256(env::block_index().to_string().as_bytes())),
-            escrow_account_id: Some(escrow_account_id),
-            escrow_public_key: Some(escrow_public_key),
-        }
-    }
+    // #[init]
+    // pub fn new(escrow_account_id: AccountId, escrow_public_key: Base58PublicKey) -> Self {
+    //     // Make absolutely sure this contract doesnt get state removed easily
+    //     assert!(!env::state_exists(), "The contract is already initialized");
+    //     assert!(
+    //         env::is_valid_account_id(&escrow_account_id.as_bytes()),
+    //         "Must be a valid escrow contract id"
+    //     );
+    //     AuctionHouse {
+    //         paused: false,
+    //         auctions: UnorderedMap::new(env::keccak256(env::block_index().to_string().as_bytes())),
+    //         escrow_account_id: Some(escrow_account_id),
+    //         escrow_public_key: Some(escrow_public_key),
+    //     }
+    // }
 
     // Here be the magix! 🧙🏻‍♂️
     // NOTE: need to create macro called "zombie" for situations just like this:
-    #[allow(dead_code)]
-    fn transfer_ownership_harsh(
-        &self,
+    pub fn transfer_ownership_harsh(
         beneficiary_id: AccountId,
-        original_balance: Balance,
+        // original_balance: Balance,
         account_id: AccountId,
         new_public_key: Base58PublicKey,
     ) -> Promise {
         // TODO: Remove once fully tested
         logger!("beneficiary_id: {:?}", &beneficiary_id);
-        logger!("original_balance: {:?}", &original_balance);
+        // logger!("original_balance: {:?}", &original_balance);
         logger!("account_id: {:?}", &account_id);
         logger!("new_public_key: {:?}", &new_public_key);
 
         // TODO: Do i need to add this contract public key to be able to do the following??
         // === Seems like this needs to be a crucial step to allow the auction to work
 
-        // Refund all amounts
-        let p1 = Promise::new(beneficiary_id.clone()).transfer(original_balance);
+        // // Refund all amounts
+        // let p1 = Promise::new(beneficiary_id.clone()).transfer(original_balance);
 
         // Remove all other access keys, so only the escrow account "owns" the
-        let p2 = Promise::new(account_id.clone()).delete_account(beneficiary_id);
+        let p1 = Promise::new(account_id.clone()).delete_account(beneficiary_id);
 
-        // TODO: finish this function call to `.near` contract
-        let p3 = Promise::new("near".to_string()).function_call(
-            vec!("create_account"),
-            // TODO: This format is likely wrong
-            { new_account_id: account_id, new_public_key },
-            NEW_ACCOUNT_BALANCE, // only setup base fee for starting an account
-            NEW_ACCOUNT_GAS_FEE // 30 T Gas?
+        // function call to `.near` contract
+        let p2 = Promise::new("testnet".to_string()).function_call(
+            // encode args to vec<u8>
+            "create_account".to_string().as_bytes().to_vec(),
+            // encode args to vec<u8>
+            json!({
+                "new_account_id": account_id,
+                "new_public_key": new_public_key
+            }).to_string().as_bytes().to_vec(),
+            NEW_ACCOUNT_BALANCE, // only setup base fee for starting an account, 0.1 Ⓝ
+            NEW_ACCOUNT_GAS_FEE / 2 // 30 T Gas?
         );
 
-        // Grant all access keys to the escrow account
-        let p4 = Promise::new(account_id).add_full_access_key(new_public_key.into());
+        // // Grant all access keys to the escrow account
+        // let p4 = Promise::new(account_id).add_full_access_key(new_public_key.into());
 
-        p1.then(p2).then(p3)
+        //.then(p3)
+        p1.then(p2)
     }
 
     // TODO: Confirm an asset is not being auctioned again during an active auction
